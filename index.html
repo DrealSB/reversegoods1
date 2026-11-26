@@ -33,6 +33,16 @@
       "areaServed": ["Select ZIP codes in Pierce County, Washington", "Select areas in southern King County, Washington, subject to route review"]
     }
   </script>
+  <style>
+    #rg-tracking-panel { background: #e9eee4; color: #163e33; border-bottom: 1px solid #cbd4c8; }
+    #rg-tracking-panel .wrap { padding-block: 14px; }
+    #rg-tracking-panel p { margin: 0 0 8px; max-width: 85ch; }
+    .rg-tracking-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .rg-tracking-actions button, #rg-tracking-manage { font: inherit; cursor: pointer; min-height: 44px; }
+    .rg-tracking-actions button { padding: 8px 14px; border: 1px solid #0b493b; border-radius: 6px; background: #fff; color: #0b493b; font-weight: 600; }
+    #rg-tracking-manage { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; text-underline-offset: 4px; }
+    #rg-tracking-panel[hidden], #rg-tracking-allow[hidden] { display: none !important; }
+  </style>
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
@@ -46,6 +56,16 @@
       </nav>
     </div>
   </header>
+
+  <aside id="rg-tracking-panel" aria-label="Optional advertising tracking" hidden>
+    <div class="wrap">
+      <p>We use optional Meta advertising cookies to measure website visits and completed pickup requests. Your choice does not affect free pickup access. <a href="#privacy">Privacy details</a>.</p>
+      <div class="rg-tracking-actions">
+        <button type="button" id="rg-tracking-allow">Allow advertising tracking</button>
+        <button type="button" id="rg-tracking-decline">Decline advertising tracking</button>
+      </div>
+    </div>
+  </aside>
 
   <main id="main" tabindex="-1">
     <section class="hero">
@@ -155,6 +175,9 @@
           <h3>Pickup request privacy notice</h3>
           <p>Tally processes and stores the contact information, pickup address, item descriptions, photos and scheduling preferences you submit. Reverse Goods uses this information to review and respond to your request and coordinate an approved pickup.</p>
           <p>Submitting a request does not enroll you in marketing messages. Please keep financial details, ID documents, gate codes and other sensitive information out of photos and notes.</p>
+          <h3>Optional advertising tracking</h3>
+          <p>If you allow advertising tracking, Meta Pixel measures website visits and successful embedded pickup form submissions to help us understand Facebook and Instagram ad performance. Meta may receive cookie identifiers, IP address, browser or device details, page URLs and event names. Our tracking code does not send pickup form answers, contact details, addresses or photos. You can decline or change your preference at any time without affecting pickup eligibility. We honor Global Privacy Control for this tracking. Read <a href="https://www.facebook.com/privacy/policy/">Meta’s privacy policy</a>.</p>
+          <p><button type="button" id="rg-tracking-manage">Change advertising tracking preferences</button></p>
           <p>For access or deletion requests, email <a href="mailto:support@shopreversegoods.com">support@shopreversegoods.com</a>. Read <a href="https://tally.so/help/privacy-policy">Tally’s privacy policy</a>.</p>
         </section>
       </div>
@@ -178,5 +201,98 @@
       </address>
     </div>
   </footer>
+  <script>
+    (function rgTracking(w,d) {
+  'use strict';
+  const pixelId = '1630478008556045';
+  const formId = 'RWx4Xv';
+  const key = 'rg-ad-tracking-v1';
+  const panel = d.getElementById('rg-tracking-panel');
+  const accept = d.getElementById('rg-tracking-allow');
+  const decline = d.getElementById('rg-tracking-decline');
+  const manage = d.getElementById('rg-tracking-manage');
+  const iframe = d.getElementById('pickupForm');
+  let choice = null, initialized = false, pageViewSent = false, countedUnknown = false;
+  const counted = new Set();
+  const gpc = w.navigator.globalPrivacyControl === true;
+  try { choice = w.localStorage.getItem(key); } catch (_) {}
+  if (choice !== 'allow' && choice !== 'decline') choice = null;
+  function enablePixel() {
+    if (gpc || choice !== 'allow') return;
+    if (!initialized) {
+      if (!w.fbq) {
+        const n = w.fbq = function () {
+          if (n.callMethod) n.callMethod.apply(n, arguments);
+          else n.queue.push(arguments);
+        };
+        if (!w._fbq) w._fbq = n;
+        n.push = n; n.loaded = true; n.version = '2.0'; n.queue = [];
+        const script = d.createElement('script');
+        script.async = true;
+        script.src = 'https://connect.facebook.net/en_US/fbevents.js';
+        w.fbq('set', 'autoConfig', false, pixelId);
+        w.fbq('consent', 'grant');
+        w.fbq('init', pixelId);
+        d.head.appendChild(script);
+      } else {
+        w.fbq('set', 'autoConfig', false, pixelId);
+        w.fbq('consent', 'grant');
+        w.fbq('init', pixelId);
+      }
+      initialized = true;
+    } else w.fbq('consent', 'grant');
+    if (!pageViewSent) {
+      w.fbq('trackSingle', pixelId, 'PageView');
+      pageViewSent = true;
+    }
+  }
+  function applyChoice(next) {
+    choice = gpc ? 'decline' : next;
+    try { w.localStorage.setItem(key, choice); } catch (_) {}
+    if (choice === 'allow') enablePixel();
+    else if (initialized && w.fbq) w.fbq('consent', 'revoke');
+    panel.hidden = true;
+  }
+  accept.addEventListener('click', function () { applyChoice('allow'); });
+  decline.addEventListener('click', function () { applyChoice('decline'); });
+  manage.addEventListener('click', function () {
+    panel.hidden = false;
+    panel.scrollIntoView({block:'nearest'});
+    (gpc ? decline : accept).focus();
+  });
+  if (gpc) {
+    accept.hidden = true;
+    choice = 'decline';
+  } else if (choice === 'allow') enablePixel();
+  panel.hidden = choice !== null;
+  w.addEventListener('storage', function (event) {
+    if (event.key !== key) return;
+    choice = gpc ? 'decline' : event.newValue;
+    if (choice === 'allow') enablePixel();
+    else if (initialized && w.fbq) w.fbq('consent', 'revoke');
+    panel.hidden = choice === 'allow' || choice === 'decline';
+  });
+  w.addEventListener('message', function (event) {
+    if (gpc || choice !== 'allow' || !initialized || !w.fbq) return;
+    if (event.origin !== 'https://tally.so' || event.source !== iframe.contentWindow) return;
+    let message = event.data;
+    if (typeof message === 'string') {
+      try { message = JSON.parse(message); } catch (_) { return; }
+    }
+    if (!message || message.event !== 'Tally.FormSubmitted') return;
+    const payload = message.payload;
+    if (!payload || typeof payload !== 'object' || payload.formId !== formId) return;
+    const id = payload.submissionId || payload.id;
+    if (typeof id === 'string' && id) {
+      if (counted.has(id)) return;
+      counted.add(id);
+    } else {
+      if (countedUnknown) return;
+      countedUnknown = true;
+    }
+    w.fbq('trackSingle', pixelId, 'Lead');
+  });
+})(window, document);
+  </script>
 </body>
 </html>
